@@ -31,6 +31,12 @@ public final class PowerUpState {
         remaining = 0f;
     }
 
+    /** Overwrites the slot (network replication); a null type clears it. */
+    public void restore(PowerUpType type, float remaining) {
+        active = type;
+        this.remaining = type == null ? 0f : remaining;
+    }
+
     public PowerUpType active() { return active; }
     public float remaining() { return remaining; }
     public boolean isActive() { return active != null; }

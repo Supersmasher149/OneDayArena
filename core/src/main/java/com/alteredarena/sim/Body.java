@@ -12,6 +12,8 @@ public final class Body {
     public int airJumpsUsed;
     /** Seconds airborne, used for landing feedback. */
     public float airTime;
+    /** Incremented on every teleport (spawns, out-of-bounds recovery) so a network peer can tell it from movement. */
+    public int teleportCount;
 
     public void teleport(Vector3 feet) {
         position.set(feet);
@@ -21,6 +23,7 @@ public final class Body {
         coyoteTimer = 0f;
         airJumpsUsed = 0;
         airTime = 0f;
+        teleportCount++;
     }
 
     public float horizontalSpeed() {

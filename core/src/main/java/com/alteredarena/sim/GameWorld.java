@@ -24,8 +24,9 @@ import java.util.Random;
  * at {@link Tuning#FIXED_DT}; read {@link #events} afterwards.
  */
 public final class GameWorld implements Disposable {
-    public static final String[] BOT_NAMES = {"Glitch", "Nyx", "Rook", "Sable"};
-    public static final int[] COLORS = {0x22F0FFFF, 0xFF3B5CFF, 0xFFC23BFF, 0x5B7BFFFF, 0xF2F2F2FF};
+    public static final String[] BOT_NAMES = {"Glitch", "Nyx", "Rook", "Sable", "Vex", "Onyx", "Hex", "Byte"};
+    public static final int[] COLORS = {0x22F0FFFF, 0xFF3B5CFF, 0xFFC23BFF, 0x5B7BFFFF, 0xF2F2F2FF, 0x3BFF8AFF,
+            0xFF8A2BFF, 0xB45BFFFF};
     private static final int MAX_EVENTS = 4096;
 
     public final LevelData level;
@@ -37,6 +38,10 @@ public final class GameWorld implements Disposable {
     public final List<GameEvent> events = new ArrayList<>();
     public final Random random;
 
+    /** The combatant this machine's camera, HUD and input belong to. */
+    public final int localId;
+
+    private final long seed;
     private final CharacterMotor motor;
     private final BotBrain[] brains;
     private final Physics.RayHit rayHit = new Physics.RayHit();
@@ -54,19 +59,38 @@ public final class GameWorld implements Disposable {
     }
 
     public GameWorld(LevelData level, long seed, int botCount, boolean autopilot, int killLimit, float duration) {
+        this(level, seed, Collections.singletonList("You"), 0, botCount, autopilot, killLimit, duration);
+    }
+
+    /**
+     * A match with several humans (ids 0..n-1, in order) followed by bots. Remote humans are driven by writing
+     * their {@link Combatant#controls} and aim before each step.
+     */
+    public GameWorld(LevelData level, long seed, List<String> humanNames, int localId, int botCount, int killLimit, float duration) {
+        this(level, seed, humanNames, localId, botCount, false, killLimit, duration);
+    }
+
+    private GameWorld(LevelData level, long seed, List<String> humanNames, int localId, int botCount, boolean autopilot,
+                      int killLimit, float duration) {
         this.level = level;
+        this.seed = seed;
+        this.localId = localId;
         this.random = new Random(seed);
         this.physics = new Physics(level);
         this.nav = NavBuilder.build(level, physics);
         this.motor = new CharacterMotor(physics);
 
-        combatants.add(new Combatant(0, "You", false, COLORS[0]));
+        for (String name : humanNames) {
+            int id = combatants.size();
+            combatants.add(new Combatant(id, name, false, COLORS[id % COLORS.length]));
+        }
         for (int i = 0; i < botCount; i++) {
-            combatants.add(new Combatant(i + 1, BOT_NAMES[i % BOT_NAMES.length], true, COLORS[(i + 1) % COLORS.length]));
+            int id = combatants.size();
+            combatants.add(new Combatant(id, BOT_NAMES[i % BOT_NAMES.length], true, COLORS[id % COLORS.length]));
         }
         brains = new BotBrain[combatants.size()];
         for (Combatant c : combatants) {
-            if (c.bot || autopilot) brains[c.id] = new BotBrain(new Random(seed * 31 + c.id), c.id * 0.13f);
+            if (c.bot || (autopilot && c.id == localId)) brains[c.id] = newBrain(c);
         }
         for (int i = 0; i < level.pickups.size(); i++) {
             LevelData.PickupSpot spot = level.pickups.get(i);
@@ -83,9 +107,21 @@ public final class GameWorld implements Disposable {
         }
     }
 
-    public Combatant player() { return combatants.get(0); }
+    public Combatant player() { return combatants.get(localId); }
     public float time() { return time; }
     public BotBrain brain(int id) { return brains[id]; }
+
+    /** Overwrites the simulation clock (network replication). */
+    public void restoreTime(float time) { this.time = time; }
+
+    /** Hands a human's combatant to the AI, e.g. when their connection drops mid-match. */
+    public void giveToBot(int id) {
+        if (brains[id] == null) brains[id] = newBrain(combatants.get(id));
+    }
+
+    private BotBrain newBrain(Combatant c) {
+        return new BotBrain(new Random(seed * 31 + c.id), c.id * 0.13f);
+    }
 
     public void step(float dt) {
         if (!match.isRunning()) return;
@@ -268,8 +304,7 @@ public final class GameWorld implements Disposable {
                 victim.chest(kill.position);
             }
         }
-        // Recoil climbs the aim slightly; the player pulls it back down.
-        c.pitch = Math.min(85f, c.pitch + weapon.type.recoilDegrees * 0.35f);
+        c.applyRecoil(weapon.type);
     }
 
     /** Random direction inside a cone of half-angle {@code degrees}, uniform over the disc. */

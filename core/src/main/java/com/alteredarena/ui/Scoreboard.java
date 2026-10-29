@@ -35,7 +35,7 @@ public final class Scoreboard {
         for (Match.Standing s : results.standings) {
             Combatant c = s.combatant;
             Color color = new Color(c.rgba);
-            boolean you = !c.bot;
+            boolean you = c.id == world.localId;
             cell(String.valueOf(s.rank), you ? Color.WHITE : UiAssets.DIM, Align.left);
             cell(c.name.toUpperCase(), color, Align.left);
             cell(String.valueOf(c.kills), Color.WHITE, Align.right);

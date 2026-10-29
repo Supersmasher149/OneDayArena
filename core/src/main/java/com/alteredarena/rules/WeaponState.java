@@ -62,6 +62,14 @@ public final class WeaponState {
 
     public void cancelReload() { reloadRemaining = 0f; }
 
+    /** Overwrites the whole state (network replication). */
+    public void restore(int magazine, int reserve, float cooldown, float reloadRemaining) {
+        this.magazine = magazine;
+        this.reserve = reserve;
+        this.cooldown = cooldown;
+        this.reloadRemaining = reloadRemaining;
+    }
+
     /** @return rounds actually added */
     public int addReserve(int amount) {
         int added = Math.max(0, Math.min(amount, type.maxReserve - reserve));
@@ -76,4 +84,5 @@ public final class WeaponState {
     public boolean isEmpty() { return magazine == 0 && reserve == 0; }
     public boolean ammoLow() { return magazine + reserve <= type.magazineSize; }
     public float cooldown() { return cooldown; }
+    public float reloadRemaining() { return reloadRemaining; }
 }

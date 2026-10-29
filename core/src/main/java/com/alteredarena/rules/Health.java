@@ -29,6 +29,8 @@ public final class Health {
     }
 
     public void reset() { current = max; }
+    /** Overwrites the current value (network replication). */
+    public void set(float value) { current = Math.max(0f, Math.min(max, value)); }
     public float current() { return current; }
     public float max() { return max; }
     public boolean isDepleted() { return current <= 0f; }

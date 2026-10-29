@@ -51,6 +51,13 @@ public final class Match {
         endReason = reason;
     }
 
+    /** Overwrites the clock and phase (network replication). */
+    public void restore(float elapsed, Phase phase, EndReason endReason) {
+        this.elapsed = elapsed;
+        this.phase = phase;
+        this.endReason = endReason;
+    }
+
     public boolean isRunning() { return phase == Phase.RUNNING; }
     public Phase phase() { return phase; }
     public EndReason endReason() { return endReason; }
@@ -101,8 +108,13 @@ public final class Match {
         public boolean isDraw() { return winners.size() > 1; }
 
         public String headline() {
+            return headline(0);
+        }
+
+        /** @param localId the combatant reading the result, who sees "YOU WIN" instead of their name */
+        public String headline(int localId) {
             if (winners.isEmpty()) return "NO RESULT";
-            if (!isDraw()) return winners.get(0).bot ? winners.get(0).name.toUpperCase() + " WINS" : "YOU WIN";
+            if (!isDraw()) return winners.get(0).id == localId ? "YOU WIN" : winners.get(0).name.toUpperCase() + " WINS";
             StringBuilder sb = new StringBuilder("DRAW: ");
             for (int i = 0; i < winners.size(); i++) {
                 if (i > 0) sb.append(i == winners.size() - 1 ? " & " : ", ");

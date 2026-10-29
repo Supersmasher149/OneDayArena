@@ -62,6 +62,11 @@ public final class Combatant {
         return out.set(MathUtils.sinDeg(yawDeg) * cp, MathUtils.sinDeg(pitchDeg), -MathUtils.cosDeg(yawDeg) * cp);
     }
 
+    /** Recoil climbs the aim slightly; the player pulls it back down. */
+    public void applyRecoil(WeaponType type) {
+        pitch = Math.min(85f, pitch + type.recoilDegrees * 0.35f);
+    }
+
     /** Resets per-life state when spawning. */
     public void resetForSpawn(Vector3 feet, float spawnYaw) {
         health.reset();
