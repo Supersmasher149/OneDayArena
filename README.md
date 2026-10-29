@@ -21,6 +21,20 @@ OFL-licensed Chakra Petch font.
 gradlew.bat :lwjgl3:run            # Windows
 ```
 
+## Online multiplayer (2-4 players plus bots)
+
+One player picks **Host Game**, which opens a lobby on port 27940 (TCP and UDP) and lists this machine's addresses.
+Friends pick **Join Game** and enter one of those addresses (`address` or `address:port`). The host chooses the
+bot count and starts the match. Over the internet, the easiest setup is everyone on the same
+[Tailscale](https://tailscale.com) network (use the host's `100.x.y.z` address); otherwise the host forwards the port.
+
+For testing, two copies can be wired up from the command line:
+
+```sh
+./gradlew :lwjgl3:run --args="--host --name=HOST --start-when=2"
+./gradlew :lwjgl3:run --args="--join=127.0.0.1 --name=GUEST"
+```
+
 ## Build and package
 
 ```sh
