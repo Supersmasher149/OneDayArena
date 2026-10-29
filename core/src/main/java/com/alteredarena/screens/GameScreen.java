@@ -4,6 +4,10 @@ import com.alteredarena.AlteredArenaGame;
 import com.alteredarena.audio.AudioManager;
 import com.alteredarena.audio.Sfx;
 import com.alteredarena.level.LevelData.PickupKind;
+import com.alteredarena.net.NetClient;
+import com.alteredarena.net.NetHost;
+import com.alteredarena.net.NetSession;
+import com.alteredarena.net.Protocol;
 import com.alteredarena.render.WorldRenderer;
 import com.alteredarena.rules.PowerUpType;
 import com.alteredarena.rules.Tuning;
@@ -29,7 +33,11 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 
-/** A match: fixed-step simulation, first-person camera, HUD, pause menu and results. */
+/**
+ * A match: fixed-step simulation, first-person camera, HUD, pause menu and results. Online, the host simulates
+ * as in solo play and also feeds its clients; a client never steps the world and only shows the host's snapshots.
+ * The pause menu never stops an online match.
+ */
 public final class GameScreen extends ScreenAdapter implements PlayerInput.Listener {
     private static final float BASE_FOV = 72f;
     private static int matchCounter;
@@ -48,6 +56,10 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
     private final Label resultsHeadline, resultsReason;
     private final Scoreboard resultsBoard;
     private final SmokeDirector smoke;
+    private final NetSession session;
+    private final NetHost host;
+    private final NetClient client;
+    private float inputTimer;
 
     GameWorld world;
     private float accumulator;
@@ -60,6 +72,9 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
         this.renderer = game.renderer;
         this.audio = game.audio;
         UiAssets ui = game.ui;
+        session = game.session;
+        host = session instanceof NetHost ? (NetHost) session : null;
+        client = session instanceof NetClient ? (NetClient) session : null;
         stage = new Stage(new ExtendViewport(1280, 720));
         hud = new Hud(ui, stage);
         input = new PlayerInput(game.settings, this);
@@ -82,10 +97,10 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
         pauseButtons.add(pausedTitle).padBottom(20).row();
         pauseButtons.defaults().width(300).height(54).padBottom(12);
         pauseButtons.add(Menus.button(ui, audio, "RESUME", this::resumeGame)).row();
-        pauseButtons.add(Menus.button(ui, audio, "RESTART MATCH", this::restart)).row();
+        if (client == null) pauseButtons.add(Menus.button(ui, audio, host != null ? "RESTART FOR ALL" : "RESTART MATCH", this::restart)).row();
         pauseButtons.add(Menus.button(ui, audio, "SETTINGS", () -> showPausePanel(settingsPanelHolder()))).row();
         pauseButtons.add(Menus.button(ui, audio, "CONTROLS", () -> showPausePanel(controlsHolder()))).row();
-        pauseButtons.add(Menus.button(ui, audio, "MAIN MENU", game::showMenu)).row();
+        pauseButtons.add(Menus.button(ui, audio, session != null ? "LEAVE GAME" : "MAIN MENU", game::showMenu)).row();
         pauseButtons.add(Menus.button(ui, audio, "QUIT GAME", () -> Gdx.app.exit())).row();
         settingsPanel = new SettingsPanel(ui, game.settings, new SettingsPanel.Listener() {
             @Override
@@ -115,12 +130,33 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
         results.add(resultsBoard.table).padBottom(24).row();
         Table resultButtons = new Table();
         resultButtons.defaults().width(260).height(56).pad(8);
-        resultButtons.add(Menus.button(ui, audio, "PLAY AGAIN", this::restart));
-        resultButtons.add(Menus.button(ui, audio, "MAIN MENU", game::showMenu));
+        if (client == null) {
+            resultButtons.add(Menus.button(ui, audio, "PLAY AGAIN", this::restart));
+        } else {
+            Label waiting = new Label("WAITING FOR THE HOST", ui.skin, "h2");
+            waiting.setColor(UiAssets.DIM);
+            resultButtons.add(waiting).width(320);
+        }
+        resultButtons.add(Menus.button(ui, audio, session != null ? "LEAVE GAME" : "MAIN MENU", game::showMenu));
         results.add(resultButtons);
         stage.addActor(results);
 
-        smoke = game.options.smoke ? new SmokeDirector(game, this) : null;
+        smoke = game.options.smoke && session == null ? new SmokeDirector(game, this) : null;
+        if (session != null) {
+            session.setListener(new NetSession.Listener() {
+                @Override
+                public void notice(String text) {
+                    Gdx.app.log("Net", text);
+                    hud.toast(text, UiAssets.YELLOW);
+                }
+
+                @Override
+                public void disconnected(String reason) {
+                    Gdx.app.log("Net", "disconnected: " + reason);
+                    game.showMenu(reason);
+                }
+            });
+        }
         newMatch();
     }
 
@@ -144,8 +180,15 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
         if (world != null) world.dispose();
         float duration = game.options.matchSeconds > 0f ? game.options.matchSeconds : Tuning.MATCH_DURATION;
         boolean tour = game.options.tour;
-        world = new GameWorld(game.level, System.nanoTime() ^ (++matchCounter * 7919L), tour ? 0 : Tuning.BOT_COUNT,
-                game.options.autoplay && !tour, Tuning.KILL_LIMIT, duration);
+        if (session != null) {
+            world = session.newWorld(game.level, Tuning.KILL_LIMIT, duration);
+            StringBuilder names = new StringBuilder();
+            for (Combatant c : world.combatants) names.append(c.id == world.localId ? "*" : "").append(c.name).append(' ');
+            Gdx.app.log("Net", (host != null ? "hosting" : "joined") + " match: " + names.toString().trim());
+        } else {
+            world = new GameWorld(game.level, System.nanoTime() ^ (++matchCounter * 7919L), tour ? 0 : Tuning.BOT_COUNT,
+                    game.options.autoplay && !tour, Tuning.KILL_LIMIT, duration);
+        }
         renderer.bind(world);
         hud.bind(world, renderer.camera);
         accumulator = 0f;
@@ -167,8 +210,9 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
     }
 
     private void capture(boolean capture) {
-        input.enabled = capture && !game.options.autoplay;
-        Gdx.input.setCursorCatched(capture && !game.options.autoplay);
+        boolean human = !game.options.autoplay || session != null;
+        input.enabled = capture && human;
+        Gdx.input.setCursorCatched(capture && human);
         input.resetMouse();
     }
 
@@ -186,7 +230,7 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
     }
 
     public void pauseFromFocusLoss() {
-        if (!paused && !resultsShown && !game.options.autoplay) pauseGame();
+        if (!paused && !resultsShown && (!game.options.autoplay || session != null)) pauseGame();
     }
 
     void pauseGame() {
@@ -203,7 +247,7 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
         pauseMenu.setVisible(false);
         dim.setVisible(false);
         hud.setVisible(true);
-        accumulator = 0f;
+        if (session == null) accumulator = 0f;
         capture(true);
     }
 
@@ -220,8 +264,8 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
     private void showResults() {
         resultsShown = true;
         Match.Results r = world.match.results();
-        boolean playerWon = !r.isDraw() && !r.winners.isEmpty() && !r.winners.get(0).bot;
-        resultsHeadline.setText(playerWon ? "YOU WIN" : r.headline());
+        boolean playerWon = !r.isDraw() && !r.winners.isEmpty() && r.winners.get(0).id == world.localId;
+        resultsHeadline.setText(r.headline(world.localId));
         resultsHeadline.setColor(playerWon ? UiAssets.CYAN : r.isDraw() ? UiAssets.YELLOW : UiAssets.MAGENTA);
         int top = r.standings.isEmpty() ? 0 : r.standings.get(0).combatant.kills;
         resultsReason.setText((r.reason == Match.EndReason.KILL_LIMIT ? "KILL LIMIT REACHED" : "TIME EXPIRED")
@@ -239,28 +283,55 @@ public final class GameScreen extends ScreenAdapter implements PlayerInput.Liste
 
     @Override
     public void render(float delta) {
-        float scale = game.options.timeScale;
+        float scale = session != null ? 1f : game.options.timeScale;
         float frame = Math.min(delta, Tuning.MAX_FRAME_TIME) * scale;
-        Combatant player = world.player();
-        boolean running = world.match.isRunning() && !paused;
+        boolean running;
+        float alpha;
 
-        if (running) {
-            input.applyLook(player);
-            accumulator += frame;
-            int steps = 0;
-            int maxSteps = Math.round(Tuning.MAX_STEPS_PER_FRAME * Math.max(1f, scale));
-            while (accumulator >= Tuning.FIXED_DT && steps < maxSteps) {
-                if (!game.options.autoplay) input.fillControls(player);
-                world.step(Tuning.FIXED_DT);
-                accumulator -= Tuning.FIXED_DT;
-                steps++;
+        if (client != null) {
+            client.update(world, delta);
+            if (client.isClosed()) return; // disconnected; the menu is on its way
+            if (client.matchPending()) newMatch();
+            Combatant player = world.player();
+            running = world.match.isRunning();
+            input.applyLook(player); // always, so mouse motion while the menu is open is swallowed
+            inputTimer += delta;
+            if (inputTimer >= Protocol.INPUT_INTERVAL) {
+                inputTimer = Math.min(inputTimer - Protocol.INPUT_INTERVAL, Protocol.INPUT_INTERVAL);
+                input.fillControls(player);
+                client.sendInput(player);
             }
-            if (steps >= maxSteps) accumulator = 0f; // drop time we cannot catch up on
+            alpha = client.interpolationAlpha();
         } else {
-            Gdx.input.getDeltaX(); // swallow mouse motion while paused
-            Gdx.input.getDeltaY();
+            Combatant player = world.player();
+            boolean human = !game.options.autoplay || host != null;
+            // An online match keeps running behind the pause menu; input is disabled while it is open.
+            running = world.match.isRunning() && (!paused || host != null);
+            if (running) {
+                input.applyLook(player);
+                accumulator += frame;
+                int steps = 0;
+                int maxSteps = Math.round(Tuning.MAX_STEPS_PER_FRAME * Math.max(1f, scale));
+                while (accumulator >= Tuning.FIXED_DT && steps < maxSteps) {
+                    if (human) input.fillControls(player);
+                    if (host != null) host.applyInputs(world);
+                    world.step(Tuning.FIXED_DT);
+                    accumulator -= Tuning.FIXED_DT;
+                    steps++;
+                }
+                if (steps >= maxSteps) accumulator = 0f; // drop time we cannot catch up on
+            } else {
+                Gdx.input.getDeltaX(); // swallow mouse motion while paused
+                Gdx.input.getDeltaY();
+            }
+            alpha = running ? accumulator / Tuning.FIXED_DT : 1f;
+            // After the steps and before processEvents clears them, so this frame's events reach the clients.
+            if (host != null) {
+                host.update(world, delta);
+                if (host.isClosed()) return;
+            }
         }
-        float alpha = running ? accumulator / Tuning.FIXED_DT : 1f;
+        Combatant player = world.player();
 
         processEvents();
         updateCamera(alpha, delta);

@@ -24,6 +24,8 @@ public final class Lwjgl3Launcher {
         // Cap at the monitor refresh rate (+1 so vsync, not the limiter, does the pacing).
         config.setForegroundFPS(Lwjgl3ApplicationConfiguration.getDisplayMode().refreshRate + 1);
         config.setIdleFPS(30);
+        // A minimized host must keep simulating for its clients; solo play pauses itself via onFocusLost.
+        config.setPauseWhenMinimized(false);
         config.setWindowedMode(1280, 720);
         config.setWindowSizeLimits(960, 540, -1, -1);
         config.setAudioConfig(32, 512, 9);

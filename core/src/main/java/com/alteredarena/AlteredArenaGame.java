@@ -3,6 +3,7 @@ package com.alteredarena;
 import com.alteredarena.audio.AudioManager;
 import com.alteredarena.level.ArenaLayout;
 import com.alteredarena.level.LevelData;
+import com.alteredarena.net.NetSession;
 import com.alteredarena.render.WorldRenderer;
 import com.alteredarena.screens.GameScreen;
 import com.alteredarena.screens.MenuScreen;
@@ -24,6 +25,8 @@ public final class AlteredArenaGame extends Game {
     public Settings settings;
     public LevelData level;
     public WorldRenderer renderer;
+    /** The online game in progress (lobby or match), or null when playing solo. */
+    public NetSession session;
     private SettingsStore store;
 
     public AlteredArenaGame(LaunchOptions options) {
@@ -68,8 +71,20 @@ public final class AlteredArenaGame extends Game {
         switchTo(new GameScreen(this));
     }
 
+    /** Returns to the main menu, leaving any online game. */
     public void showMenu() {
-        switchTo(new MenuScreen(this));
+        showMenu(null);
+    }
+
+    /** @param notice shown on the menu, e.g. why an online game ended; may be null */
+    public void showMenu(String notice) {
+        endSession();
+        switchTo(new MenuScreen(this, notice));
+    }
+
+    public void endSession() {
+        if (session != null) session.close();
+        session = null;
     }
 
     /** Switches screens after the current frame so a screen is never disposed while it is running. */
@@ -93,6 +108,7 @@ public final class AlteredArenaGame extends Game {
 
     @Override
     public void dispose() {
+        endSession();
         Screen current = getScreen();
         if (current != null) current.dispose();
         if (renderer != null) renderer.dispose();
