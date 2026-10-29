@@ -1,0 +1,24 @@
+## Gradle
+.gradle/
+/build/
+/core/build/
+/lwjgl3/build/
+/tools/build/
+## Java
+*.class
+hs_err_pid*
+.attach_pid*
+## IDE
+.idea/
+*.iml
+.vscode/
+out/
+bin/
+.classpath
+.project
+.settings/
+## OS
+.DS_Store
+## Local smoke-test output
+/smoke-output/
+local.properties

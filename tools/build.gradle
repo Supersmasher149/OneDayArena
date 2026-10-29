@@ -1,0 +1,21 @@
+// Generates the bundled procedural sound effects into assets/sounds.
+// Run with: ./gradlew :tools:generateSounds
+tasks.register('generateSounds', JavaExec) {
+  group = 'assets'
+  description = 'Synthesizes the procedural WAV sound effects into assets/sounds.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'com.alteredarena.tools.SoundGenerator'
+  args rootProject.file('assets/sounds').absolutePath
+  javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+// Draws the window icons into lwjgl3/src/main/resources/icons and the packaging logo into lwjgl3/icons.
+// Run with: ./gradlew :tools:generateIcons
+tasks.register('generateIcons', JavaExec) {
+  group = 'assets'
+  description = 'Draws the window and packaging icons.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'com.alteredarena.tools.IconGenerator'
+  args rootProject.file('lwjgl3/src/main/resources/icons').absolutePath, rootProject.file('lwjgl3/icons').absolutePath
+  javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}

@@ -1,0 +1,23 @@
+apply plugin: 'java-library'
+dependencies {
+  api "com.badlogicgames.gdx:gdx:$gdxVersion"
+  api "com.badlogicgames.gdx:gdx-bullet:$gdxVersion"
+  api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
+
+  testImplementation platform("org.junit:junit-bom:$junitVersion")
+  testImplementation 'org.junit.jupiter:junit-jupiter'
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+  // Desktop natives so Bullet-backed simulation tests can run headless.
+  testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+  testRuntimeOnly "com.badlogicgames.gdx:gdx-bullet-platform:$gdxVersion:natives-desktop"
+}
+
+test {
+  useJUnitPlatform()
+  testLogging {
+    events 'failed', 'skipped'
+    exceptionFormat 'full'
+    showStandardStreams = false
+  }
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}

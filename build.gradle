@@ -1,0 +1,22 @@
+// Root build for Altered Arena. Structure follows the gdx-liftoff (libGDX 1.14.2) layout:
+// core (game + simulation), lwjgl3 (desktop launcher/packaging), tools (asset generators).
+subprojects {
+  apply plugin: 'java'
+  version = projectVersion
+  ext.appName = appName
+
+  repositories {
+    mavenCentral()
+  }
+
+  java {
+    toolchain {
+      languageVersion = JavaLanguageVersion.of(21)
+    }
+  }
+
+  tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:deprecation']
+  }
+}
