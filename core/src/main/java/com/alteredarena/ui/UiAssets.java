@@ -19,6 +19,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
@@ -214,6 +215,19 @@ public final class UiAssets implements Disposable {
         check.font = body;
         check.fontColor = Color.WHITE;
         skin.add("default", check);
+
+        TextField.TextFieldStyle field = new TextField.TextFieldStyle();
+        field.font = body;
+        field.fontColor = Color.WHITE;
+        field.messageFont = body;
+        field.messageFontColor = DIM;
+        field.background = frame(0x120C24E6, 0x6A3AA8FF, 2);
+        field.focusedBackground = frame(0x1C1236F0, 0x22F0FFFF, 2);
+        Drawable cursor = new TextureRegionDrawable(white).tint(CYAN);
+        cursor.setMinWidth(2);
+        field.cursor = cursor;
+        field.selection = new TextureRegionDrawable(white).tint(new Color(0xFF2BD666));
+        skin.add("default", field);
     }
 
     public TextureRegion icon(PowerUpType type) { return powerIcons.get(type); }

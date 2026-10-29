@@ -18,6 +18,8 @@ public final class SettingsStore {
         s.setInvertY(prefs.getBoolean("invertY", s.invertY()));
         s.setFullscreen(prefs.getBoolean("fullscreen", s.fullscreen()));
         s.setReducedEffects(prefs.getBoolean("reducedEffects", s.reducedEffects()));
+        s.setPlayerName(prefs.getString("playerName", s.playerName()));
+        s.setLastAddress(prefs.getString("lastAddress", s.lastAddress()));
         return s;
     }
 
@@ -27,6 +29,8 @@ public final class SettingsStore {
         prefs.putBoolean("invertY", s.invertY());
         prefs.putBoolean("fullscreen", s.fullscreen());
         prefs.putBoolean("reducedEffects", s.reducedEffects());
+        prefs.putString("playerName", s.playerName());
+        prefs.putString("lastAddress", s.lastAddress());
         prefs.flush();
     }
 }
