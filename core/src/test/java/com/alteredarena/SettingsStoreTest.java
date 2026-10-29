@@ -36,6 +36,26 @@ class SettingsStoreTest {
         assertEquals(0f, clamped.masterVolume());
     }
 
+    @Test
+    void playerNameAndAddressPersistAndSanitize() {
+        MapPreferences prefs = new MapPreferences();
+        Settings s = new SettingsStore(prefs).load();
+        assertEquals(Settings.DEFAULT_NAME, s.playerName());
+        assertEquals("", s.lastAddress());
+        s.setPlayerName("  neon<rider>!!  ");
+        s.setLastAddress(" 100.64.0.7:27940 ");
+        new SettingsStore(prefs).save(s);
+
+        Settings loaded = new SettingsStore(prefs).load();
+        assertEquals("NEONRIDER", loaded.playerName());
+        assertEquals("100.64.0.7:27940", loaded.lastAddress());
+
+        loaded.setPlayerName("@@@");
+        assertEquals(Settings.DEFAULT_NAME, loaded.playerName(), "a name with nothing usable falls back to the default");
+        loaded.setPlayerName("a very long player name indeed");
+        assertTrue(loaded.playerName().length() <= Settings.MAX_NAME_LENGTH);
+    }
+
     /** In-memory Preferences so the test needs no libGDX backend. */
     static final class MapPreferences implements Preferences {
         final Map<String, Object> map = new HashMap<>();
